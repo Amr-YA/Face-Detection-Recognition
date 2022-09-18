@@ -1,5 +1,5 @@
 # Face Recognition
-Face recognition model: detects multiple faces in a video.
+Face recognition model: detects multiple faces in a video and recogize known persons.
 faces pictures, names, video has to follow certain directory structure:
 ```
 |-- face_rec_files: root folder mounted to the docker
