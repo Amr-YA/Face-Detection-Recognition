@@ -9,6 +9,7 @@ app = Flask(__name__)
 MODEL = 'hog'  # 'hog': faster, less acurate - or - 'cnn': slower, more accurate
 TOLERANCE = 0.6
 
+# confirm required dirs exist and append the current dir to the required folders name to produce absolute paths
 def confirm_dirs(
                 current_dir, 
                 root_mount_dir, 
@@ -28,6 +29,7 @@ def confirm_dirs(
         print(e)
         return False, "", "", ""
 
+# load the faces from the known_face_dir folder and get their names
 def load_faces(known_face_dir, model=MODEL):
     known_encodings = []
     known_names = []
@@ -47,6 +49,7 @@ def load_faces(known_face_dir, model=MODEL):
             known_names.append(name)
     return known_encodings, known_names
 
+# used to label the frames for faces and show the current frame on screen
 def show_labeled_image(frame, show_video_output, n_faces, face_locations, resiz_factor,face_names):
     for (top, right, bottom, left), name in zip(face_locations, face_names):
 
@@ -69,8 +72,8 @@ def show_labeled_image(frame, show_video_output, n_faces, face_locations, resiz_
     
     return frame
 
+# the inference 
 def video_inference(known_encodings, known_names, video_folder, unknown_faces_dir, model=MODEL, skip_frames=10, n_upscale=1, resiz_factor=1,show_video_output=False, write_video_output=False):
-
     unknowns = 0
     knowns = 0
     faces_in_frames = {}
@@ -170,9 +173,10 @@ def video_inference(known_encodings, known_names, video_folder, unknown_faces_di
     return faces_in_frames, total, unknowns, knowns
 
 # %%
-from flask import Flask, request, jsonify
+# Flask app for running a server
 app = Flask(__name__)
 
+# /healthcheck to confirm server is running and folders are readable
 @app.route("/healthcheck", methods=["GET"])
 def healthcheck():
     current_dir = os.path.dirname(__file__)
@@ -188,6 +192,8 @@ def healthcheck():
     obj = {"status": status_msg}
     return jsonify(obj), status_code
 
+# /run to activate the inference method and produce the results
+# reading the files is done here not in __main__ to force read files every time the method is activated and not just on the initial server up
 @app.route("/run", methods=["GET"])
 def run():
     root_mount_dir = 'face_rec_files'
@@ -242,7 +248,7 @@ def run():
     return jsonify(obj), status_code
 
 
-  
+# activate the server and get current directory for the running .py file
 if __name__ == "__main__":
     current_dir = os.path.dirname(__file__)
     app.run(host="0.0.0.0", port="3000")
