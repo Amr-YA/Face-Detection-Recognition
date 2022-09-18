@@ -1,5 +1,5 @@
 # Face Recognition
-Face recognition model: detects multiple faces in a video and recogize known persons.
+Face recognition model: detects multiple faces in a video and recognize known persons.
 faces pictures, names, video has to follow certain directory structure:
 ```
 |-- face_rec_files: root folder mounted to the docker
@@ -48,7 +48,7 @@ status_code & status values:
 - 402: mount folder not found  
 
 ## GET /run
-activates the analysis and return response object and the output files 
+activates the analysis and return response object and the output files
 
 **GET /run response**
 ```
@@ -63,7 +63,7 @@ json = {
                 {"name":"thor","time":7465},
                 {"name":"loki","time":10385}
             ],
-    } 
+    }
 & status_code
 ```
 
