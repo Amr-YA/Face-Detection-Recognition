@@ -12,4 +12,6 @@ COPY . .
 
 EXPOSE 5005
 USER 1001
-CMD ["python", "video_face_rec.py"]
+
+RUN cd ./app
+CMD ["python", "app.py"]
