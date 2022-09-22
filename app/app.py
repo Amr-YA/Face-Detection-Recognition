@@ -2,7 +2,7 @@ import os
 from flask import Flask, request, jsonify
 import dlib
 from gevent.pywsgi import WSGIServer
-from video_face_rec import confirm_dirs, run_analysis
+from video_face_rec import confirm_dirs, run_quick, run_custom
 
 app = Flask(__name__)
 APP_DIR = os.path.dirname(__file__)
@@ -20,16 +20,23 @@ def healthcheck():
     return jsonify(obj), status_code
 
 
-@app.route("/run", methods=["GET"])
-def run():
-    obj, status_code = run_analysis(model = 'cnn', # 'hog': faster, less acurate - or - 'cnn': slower, more accurate
-                                    skip_frames=3, 
-                                    n_upscale=1, 
-                                    resiz_factor=1, 
-                                    num_jitters=2,
-                                    show_video_output=False,
-                                    write_video_output=True)
+@app.route("/run_quick", methods=["GET"])
+def run_quick():
 
+    file_name="lol",
+    model = 'hog',
+    skip_frames=3, 
+    resiz_factor=1,
+    num_jitters=1,  
+    tolerance=0.6,   
+
+
+    obj, status_code = run_quick(file_name, model, skip_frames, resiz_factor, num_jitters, tolerance)
+    return jsonify(obj), status_code
+
+@app.route("/run_custom", methods=["POST"])
+def run_custom():
+    obj, status_code = run_custom()
     return jsonify(obj), status_code
 
 

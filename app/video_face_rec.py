@@ -1,18 +1,18 @@
 #%%
+from traceback import print_tb
 import face_recognition
 import os
 import cv2
 import numpy as np
 import dlib
+import time
 
-MODEL = 'hog'  # 'hog': faster, less acurate - or - 'cnn': slower, more accurate
-TOLERANCE = 0.6
 APP_DIR = os.path.dirname(__file__)
-CURRENT_DIR = os.path.dirname(APP_DIR)
+DOCKER_DIR = os.path.dirname(APP_DIR)
 #%%
 
 # confirm required dirs exist and append the current dir to the required folders name to produce absolute paths
-def confirm_dirs(parent_dir):
+def confirm_dirs(parent_dir, video_name):
     mount_relative_dir = 'face_rec_files'
     know_faces_relative_dir = 'known'
     unknown_faces_relative_dir = 'unknown'
@@ -23,32 +23,58 @@ def confirm_dirs(parent_dir):
 
     status_msg = ""
 
+    #if error in mount folder, exit confirm_dirs and return status False
     if not(mount_exist):
         status_msg = "root working directory not found"
         print(status_msg)
-        return False, "", "", "", status_msg
+        return False, "", "", "", "", status_msg
+
+    # load all directories and get full paths
     try:
         know_faces_full_dir = os.path.normpath(os.path.join(mount_full_dir, know_faces_relative_dir))
         unknown_faces_full_dir = os.path.normpath(os.path.join(mount_full_dir, unknown_faces_relative_dir))
-        video_full_dir = os.path.normpath(os.path.join(mount_full_dir, video_relative_dir))
+        video_folder_full_dir = os.path.normpath(os.path.join(mount_full_dir, video_relative_dir))
 
         know_faces_full_dir_exist = os.path.isdir(know_faces_full_dir)
         unknown_faces_full_dir_exist = os.path.isdir(unknown_faces_full_dir)
-        video_full_dir_exist = os.path.isdir(video_full_dir)
-
-        if know_faces_full_dir_exist and unknown_faces_full_dir_exist and video_full_dir_exist:
-            status_msg = "Root and child dirs are all correct"
-            print(status_msg)
-            return True, know_faces_full_dir, unknown_faces_full_dir, video_full_dir, status_msg
-        else:
-            status_msg = f"known folder: {know_faces_full_dir_exist}, unknown folder: {unknown_faces_full_dir_exist}, video folder: {video_full_dir_exist}"
-            print(status_msg)
-            return False, "", "", "", status_msg
+        video_folder_full_dir_exist = os.path.isdir(video_folder_full_dir)
+        all_dir_exist = know_faces_full_dir_exist and unknown_faces_full_dir_exist and video_folder_full_dir_exist
     except Exception as e:
-        print("-----eror: ", e)
-        status_msg = f"unexpected errer: {e}"
+        print("-----error11: ", e)
+        status_msg = "unexpected error, please check all directories and videos"
+        return False, "", "", "", "", status_msg
+
+    #if error in directories structure, exit confirm_dirs and return status False
+    if not(all_dir_exist):
+        status_msg = f"Error in dirs - known: {know_faces_full_dir_exist}, unknown: {unknown_faces_full_dir_exist}, video: {video_folder_full_dir_exist}"
         print(status_msg)
-        return False, "", "", "", status_msg
+        return False, "", "", "", "", status_msg       
+
+    status, video_name = fetch_video_full_dir(video_folder_full_dir, video_name)
+
+    #if no video found, exit confirm_dirs and return status False
+    if not(status):
+        status_msg = "video file not found"
+        print(status_msg)
+        return False, "", "", "", "", status_msg
+
+    # finally if no error found, return all full paths
+    status_msg = "Root and child dirs are all correct"
+    print(status_msg)
+    return True, know_faces_full_dir, unknown_faces_full_dir, video_folder_full_dir, video_name, status_msg
+
+# get video full path by name or get 1st video in the folder
+def fetch_video_full_dir(video_dir, video_name):
+    video_dir_files = os.listdir(video_dir)
+    print("-----video for analysis", video_dir_files[0] if video_name==None else video_name)
+    if len(video_dir_files) > 0:
+        video_name = video_dir_files[0] if video_name==None else video_name
+        video_file_full_dir = os.path.normpath(os.path.join(video_dir, video_name)) 
+        status = os.path.isfile(video_file_full_dir)
+    else:
+        video_file_full_dir = "empty"
+        status = False
+    return status, video_name
 
 # load the faces from the known_face_dir folder and get their names
 def load_faces(known_face_dir, model, num_jitters):
@@ -89,20 +115,19 @@ def show_labeled_image(frame, show_video_output, n_faces, face_locations, resiz_
 
     # Display the resulting image
 
-    # TODO
-    # if show_video_output: 
-    #     cv2.imshow('Video', frame)
+    if show_video_output: 
+        cv2.imshow('Video', frame)
     
     return frame
 
 # the inference 
-def video_inference(known_encodings, known_names, video_folder, unknown_faces_dir, model, skip_frames, n_upscale, resiz_factor,show_video_output, write_video_output):
+def video_inference(known_encodings, known_names, video_folder, video_name, unknown_faces_dir, model, skip_frames, n_upscale, resiz_factor,show_video_output, write_video_output, tolerance):
     unknowns = 0
     knowns = 0
+    video_file = os.path.normpath(os.path.join(video_folder, video_name))
+    video_name = video_name.split('.')[0]
     faces_in_frames = {}
     frame_array = []
-    video_name = os.listdir(video_folder)[0]
-    video_file = os.path.normpath(os.path.join(video_folder, video_name)) 
     video_capture = cv2.VideoCapture(video_file)
     frame_counter = 1
     print("-------processing: ", video_file)
@@ -140,14 +165,13 @@ def video_inference(known_encodings, known_names, video_folder, unknown_faces_di
             face_names = []
             for i, (face_encoding, face_location) in enumerate(zip(face_encodings, face_locations)):
                 # See if the face is a match for the known face(s)
-                matches = face_recognition.compare_faces(known_encodings, face_encoding)
+                matches = face_recognition.compare_faces(known_encodings, face_encoding, tolerance=tolerance)
                 top, right, bottom, left = face_location
                 top = int(top//resiz_factor)
                 right = int(right//resiz_factor)
                 bottom = int(bottom//resiz_factor)
                 left = int(left//resiz_factor)
                 face_image = frame[top:bottom, left:right]
-                name = "Unknown"
 
                 # # If a match was found in known_face_encodings, just use the first one.
                 # if True in matches:
@@ -164,37 +188,28 @@ def video_inference(known_encodings, known_names, video_folder, unknown_faces_di
                         faces_in_frames[name]= timestamp
 
                 else:
+                    name = "Unknown"
                     unknowns+=1   
-
-                    image_name = f"frame_{frame_counter}_unknown_{i}.jpeg"
-                    if not(os.path.isdir(unknown_faces_dir)): 
-                        os.mkdir(unknown_faces_dir)
-                    full_img_dir = os.path.normpath(os.path.join(unknown_faces_dir, image_name))
-                    cv2.imwrite(full_img_dir ,face_image)
+                    image_name = f"time{timestamp}_unknown.jpeg"
+                    save_photo(unknown_faces_dir, video_name, face_image, image_name)
                 face_names.append(name)
                 print(f", recognized: {name}", end = '')
             print()
             
             frame = show_labeled_image(frame, show_video_output, n_faces, face_locations, resiz_factor, face_names)
 
-        frame_array.append(frame)
+            frame_array.append(frame)
         frame_counter +=1
 
 
         # Hit 'q' on the keyboard to quit!
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
-    # Release handle to the webcam
 
     if write_video_output:
-        out_name = f"{video_name.split('.')[0]}_out.avi"
-        out_path = os.path.normpath(os.path.join(video_folder, out_name))
-        print("----output video: ", out_path)
-        out_writer = cv2.VideoWriter(out_path, cv2.VideoWriter_fourcc(*'XVID'), int(fps), size)
-        for i in range(len(frame_array)):
-            # writing to a image array
-            out_writer.write(frame_array[i])
-        out_writer.release()
+        save_video(video_name, unknown_faces_dir, frame_array, target_fps=int(fps/skip_frames), image_size=size)
+
+    # Release handle to the webcam
     video_capture.release()
     cv2.destroyAllWindows()    
 
@@ -202,42 +217,64 @@ def video_inference(known_encodings, known_names, video_folder, unknown_faces_di
     return faces_in_frames, total, unknowns, knowns
 
 # %%
+
+def save_photo(unknown_faces_dir, video_name, face_image, image_name):
+    unkowndir_per_video_dir = os.path.normpath(os.path.join(unknown_faces_dir, video_name))
+    if not(os.path.isdir(unkowndir_per_video_dir)): 
+        os.mkdir(unkowndir_per_video_dir)
+    full_img_dir = os.path.normpath(os.path.join(unkowndir_per_video_dir, image_name))
+    cv2.imwrite(full_img_dir ,face_image)
+
+def save_video(video_name, video_folder, frame_array, target_fps, image_size):
+    out_path = os.path.normpath(os.path.join(video_folder, video_name))
+    if not(os.path.isdir(out_path)): 
+        os.mkdir(out_path)
+    out_name = f"{video_name}_labeled.avi"
+    out_path = os.path.normpath(os.path.join(out_path, out_name))
+    print("----output video: ", out_path)
+    out_writer = cv2.VideoWriter(out_path, cv2.VideoWriter_fourcc(*'XVID'), target_fps, image_size)
+    for i in range(len(frame_array)):
+        # writing to a image array
+        out_writer.write(frame_array[i])
+    out_writer.release()
 # activate the inference method and produce the results
 def run_analysis(model = 'hog', # 'hog': faster, less acurate - or - 'cnn': slower, more accurate
                 skip_frames=3, 
                 n_upscale=1, 
-                resiz_factor=.25, 
+                resiz_factor=1, 
                 num_jitters=1,
                 show_video_output=False,
-                write_video_output=True):
+                write_video_output=True,
+                video_name = None, 
+                tolerance=0.6):
 
-    status, know_faces_dir, unknown_faces_dir, video_dir, msg = confirm_dirs(CURRENT_DIR)
+    status, know_faces_dir, unknown_faces_dir, video_dir, video_name, msg = confirm_dirs(DOCKER_DIR, video_name)
     status_code = 0
 
-    if status:
-        video_file = os.listdir(video_dir)[0]     
-        video_file = os.path.normpath(os.path.join(video_dir, video_file))  
+    if status: 
         try:
             known_encodings, known_names = load_faces(know_faces_dir, model=model, num_jitters=num_jitters)
         except Exception as e:
             status_code = 427 # error in loading faces
             status_msg = "error in loading faces"
-            print("-----error: ",e)
+            print("-----error22: ",e)
             obj = {"status": status_msg,}
             return obj, status_code
 
-        try:    
+        try:  
             faces_in_frames, total, unknowns, knowns = video_inference(
-                known_encodings, 
-                known_names, 
-                video_dir, 
-                unknown_faces_dir, 
+                known_encodings=known_encodings, 
+                known_names=known_names, 
+                video_folder=video_dir, 
+                video_name=video_name,
+                unknown_faces_dir=unknown_faces_dir, 
                 model = model, 
                 skip_frames=skip_frames, 
                 n_upscale=n_upscale, 
                 resiz_factor=resiz_factor, 
                 show_video_output=show_video_output,
-                write_video_output=write_video_output
+                write_video_output=write_video_output,
+                tolerance=tolerance,
             )
 
             faces_list = []
@@ -249,7 +286,7 @@ def run_analysis(model = 'hog', # 'hog': faster, less acurate - or - 'cnn': slow
             status_msg = "done"
             status_code = 200
             obj = {"status": status_msg,
-                    "video_file": video_file,
+                    "video_file": video_name,
                     "total_faces_count": total,
                     "unknown_faces_count": unknowns,
                     "known_faces_count": knowns,
@@ -257,7 +294,7 @@ def run_analysis(model = 'hog', # 'hog': faster, less acurate - or - 'cnn': slow
                     }
             return obj, status_code
         except Exception as e:
-            print("-----error: ", e)
+            print("-----error33: ", e)
             status_code = 428 # error in detecting faces
             status_msg = "error in detecting faces"
             obj = {"status": status_msg,}
@@ -267,21 +304,45 @@ def run_analysis(model = 'hog', # 'hog': faster, less acurate - or - 'cnn': slow
         obj = {"status": msg,}
         return obj, status_code
 
-
-if __name__ == "__main__":
-    print("--------------- running main file")
-
-def run():
-    obj, status_code = run_analysis(model = 'cnn', # 'hog': faster, less acurate - or - 'cnn': slower, more accurate
-                                    skip_frames=3, 
-                                    n_upscale=1, 
-                                    resiz_factor=1, 
-                                    num_jitters=2,
-                                    show_video_output=False,
-                                    write_video_output=True)
+def run_quick():
+    obj, status_code = run_analysis(
+                model = 'hog', # 'hog': faster, less acurate - or - 'cnn': slower, more accurate
+                skip_frames=3, 
+                n_upscale=1, 
+                resiz_factor=1, 
+                num_jitters=1,
+                show_video_output=False,
+                write_video_output=True,
+                video_name = None, 
+                tolerance=0.6)
 
     return obj, status_code
 
-run()  
+def run_custom(file_name,
+                model = 'hog',
+                skip_frames=3, 
+                resiz_factor=1,
+                num_jitters=1,  
+                tolerance=0.6,    
+):
+    obj, status_code = run_analysis(
+                video_name = file_name, 
+                model = model,
+                skip_frames=skip_frames, 
+                resiz_factor=resiz_factor, 
+                num_jitters=num_jitters,
+                n_upscale=1, 
+                show_video_output=False,
+                write_video_output=True,
+                tolerance=tolerance
+                                    )
+
+    return obj, status_code
+
+run_quick()  
+
+# %%
+
+
 
 # %%
