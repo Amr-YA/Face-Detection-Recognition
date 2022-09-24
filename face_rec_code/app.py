@@ -2,7 +2,7 @@ import os
 from flask import Flask, request, jsonify
 import dlib
 from gevent.pywsgi import WSGIServer
-from video_face_rec import confirm_dirs, analyze_defaults, analyze_custom
+from video_face_rec import confirm_dirs, pipeline
 
 import warnings
 warnings.simplefilter("ignore")
@@ -24,11 +24,13 @@ def healthcheck():
 
 @app.route("/run_defaults", methods=["GET"])
 def run_defaults():
-    obj, status_code = analyze_defaults()
+    print("-----default analysis running")
+    obj, status_code = pipeline()
     return jsonify(obj), status_code
 
 @app.route("/run_custom", methods=["POST"])
 def run_custom():
+    print("-----custom analysis running")
 
     try:
         file_name = request.json["file_name"]
@@ -79,7 +81,7 @@ def run_custom():
         tolerance = 0.6
         print("-----tolerance not found in request")
 
-    obj, status_code = analyze_custom(video_name=file_name, model=model, skip_frames=skip_frames, resiz_factor=resiz_factor, n_upscale=n_upscale, num_jitters=num_jitters, tolerance=tolerance)
+    obj, status_code = pipeline(video_name=file_name, model=model, skip_frames=skip_frames, resiz_factor=resiz_factor, n_upscale=n_upscale, num_jitters=num_jitters, tolerance=tolerance)
     return jsonify(obj), status_code
 
 

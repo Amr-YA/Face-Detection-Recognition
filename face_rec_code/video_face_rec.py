@@ -236,15 +236,17 @@ def save_video(video_name, video_folder, frame_array, target_fps, image_size):
     out_writer.release()
 
 # activate the inference method and produce the results
-def pipeline(model,
-            skip_frames, 
-            n_upscale, 
-            resiz_factor, 
-            num_jitters,
-            show_video_output,
-            write_video_output,
-            video_name, 
-            tolerance):
+def pipeline(
+            model = 'hog', # 'hog': faster, less acurate - or - 'cnn': slower, more accurate
+            skip_frames=5, # higher = faster, less acurate
+            n_upscale=1, # higher = slower, more accurate (min 1)
+            resiz_factor=1, # higher = slower, more accurate (min 0)
+            num_jitters=1, # higher = slower, more accurate (min 0)
+            tolerance=0.6, # lower = more accurate but less matching (min 0)
+            show_video_output=False,
+            write_video_output=True,
+            video_name = None, 
+            ):
 
     status, know_faces_dir, unknown_faces_dir, video_dir, video_name, msg = confirm_dirs(DOCKER_DIR, video_name)
     status_code = 0
@@ -302,44 +304,6 @@ def pipeline(model,
         obj = {"status": msg,}
         return obj, status_code
 
-# default parameters inference
-def analyze_defaults():
-    obj, status_code = pipeline(
-                model = 'hog', # 'hog': faster, less acurate - or - 'cnn': slower, more accurate
-                skip_frames=5, # higher = faster, less acurate
-                n_upscale=1, # higher = slower, more accurate (min 1)
-                resiz_factor=1, # higher = slower, more accurate (min 0)
-                num_jitters=1, # higher = slower, more accurate (min 0)
-                tolerance=0.6, # lower = more accurate but less matching (min 0)
-                show_video_output=False,
-                write_video_output=True,
-                video_name = None, 
-                )
 
-    return obj, status_code
-
-# custome parameters inference
-def analyze_custom(video_name,
-                model = 'hog',
-                skip_frames=5, 
-                resiz_factor=1,
-                n_upscale=1, 
-                num_jitters=1,  
-                tolerance=0.6,    
-):
-    obj, status_code = pipeline(
-                video_name = video_name, 
-                model = model,
-                skip_frames=skip_frames, 
-                resiz_factor=resiz_factor, 
-                n_upscale=n_upscale, 
-                num_jitters=num_jitters,
-                tolerance=tolerance,
-                show_video_output=False,
-                write_video_output=True,
-                                    )
-
-    return obj, status_code
-
-# run_custom(video_name="2.mp4", skip_frames=10)  
-# run_quick()
+# pipeline(video_name="2.mp4", skip_frames=10)  
+# pipeline()
