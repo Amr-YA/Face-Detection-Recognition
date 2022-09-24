@@ -1,5 +1,3 @@
-#%%
-from traceback import print_tb
 import face_recognition
 import os
 import cv2
@@ -9,7 +7,6 @@ import time
 
 APP_DIR = os.path.dirname(__file__)
 DOCKER_DIR = os.path.dirname(APP_DIR)
-#%%
 
 # confirm required dirs exist and append the current dir to the required folders name to produce absolute paths
 def confirm_dirs(parent_dir, video_name):
@@ -216,8 +213,7 @@ def video_inference(known_encodings, known_names, video_folder, video_name, unkn
     total = unknowns + knowns
     return faces_in_frames, total, unknowns, knowns
 
-# %%
-
+# save photos in folder
 def save_photo(unknown_faces_dir, video_name, face_image, image_name):
     unkowndir_per_video_dir = os.path.normpath(os.path.join(unknown_faces_dir, video_name))
     if not(os.path.isdir(unkowndir_per_video_dir)): 
@@ -225,6 +221,7 @@ def save_photo(unknown_faces_dir, video_name, face_image, image_name):
     full_img_dir = os.path.normpath(os.path.join(unkowndir_per_video_dir, image_name))
     cv2.imwrite(full_img_dir ,face_image)
 
+# save video in folder
 def save_video(video_name, video_folder, frame_array, target_fps, image_size):
     out_path = os.path.normpath(os.path.join(video_folder, video_name))
     if not(os.path.isdir(out_path)): 
@@ -237,16 +234,17 @@ def save_video(video_name, video_folder, frame_array, target_fps, image_size):
         # writing to a image array
         out_writer.write(frame_array[i])
     out_writer.release()
+
 # activate the inference method and produce the results
-def run_analysis(model = 'hog', # 'hog': faster, less acurate - or - 'cnn': slower, more accurate
-                skip_frames=3, 
-                n_upscale=1, 
-                resiz_factor=1, 
-                num_jitters=1,
-                show_video_output=False,
-                write_video_output=True,
-                video_name = None, 
-                tolerance=0.6):
+def pipeline(model,
+            skip_frames, 
+            n_upscale, 
+            resiz_factor, 
+            num_jitters,
+            show_video_output,
+            write_video_output,
+            video_name, 
+            tolerance):
 
     status, know_faces_dir, unknown_faces_dir, video_dir, video_name, msg = confirm_dirs(DOCKER_DIR, video_name)
     status_code = 0
@@ -304,45 +302,44 @@ def run_analysis(model = 'hog', # 'hog': faster, less acurate - or - 'cnn': slow
         obj = {"status": msg,}
         return obj, status_code
 
-def run_quick():
-    obj, status_code = run_analysis(
+# default parameters inference
+def analyze_defaults():
+    obj, status_code = pipeline(
                 model = 'hog', # 'hog': faster, less acurate - or - 'cnn': slower, more accurate
-                skip_frames=3, 
-                n_upscale=1, 
-                resiz_factor=1, 
-                num_jitters=1,
+                skip_frames=5, # higher = faster, less acurate
+                n_upscale=1, # higher = slower, more accurate (min 1)
+                resiz_factor=1, # higher = slower, more accurate (min 0)
+                num_jitters=1, # higher = slower, more accurate (min 0)
+                tolerance=0.6, # lower = more accurate but less matching (min 0)
                 show_video_output=False,
                 write_video_output=True,
                 video_name = None, 
-                tolerance=0.6)
+                )
 
     return obj, status_code
 
-def run_custom(file_name,
+# custome parameters inference
+def analyze_custom(video_name,
                 model = 'hog',
-                skip_frames=3, 
+                skip_frames=5, 
                 resiz_factor=1,
+                n_upscale=1, 
                 num_jitters=1,  
                 tolerance=0.6,    
 ):
-    obj, status_code = run_analysis(
-                video_name = file_name, 
+    obj, status_code = pipeline(
+                video_name = video_name, 
                 model = model,
                 skip_frames=skip_frames, 
                 resiz_factor=resiz_factor, 
+                n_upscale=n_upscale, 
                 num_jitters=num_jitters,
-                n_upscale=1, 
+                tolerance=tolerance,
                 show_video_output=False,
                 write_video_output=True,
-                tolerance=tolerance
                                     )
 
     return obj, status_code
 
-run_quick()  
-
-# %%
-
-
-
-# %%
+# run_custom(video_name="2.mp4", skip_frames=10)  
+# run_quick()
