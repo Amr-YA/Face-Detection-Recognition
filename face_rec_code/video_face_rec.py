@@ -3,7 +3,7 @@ import os
 import cv2
 import numpy as np
 import dlib
-import time
+# import time
 
 APP_DIR = os.path.dirname(__file__)
 DOCKER_DIR = os.path.dirname(APP_DIR)
@@ -124,27 +124,33 @@ def video_inference(known_encodings, known_names, video_folder, video_name, unkn
     video_file = os.path.normpath(os.path.join(video_folder, video_name))
     video_name = video_name.split('.')[0]
     faces_in_frames = {}
+    faces_all_timestamps = {}
     frame_array = []
     video_capture = cv2.VideoCapture(video_file)
+    totalNoFrames = video_capture.get(cv2.CAP_PROP_FRAME_COUNT)
+    fps = video_capture.get(cv2.CAP_PROP_FPS)
+    
+
     frame_counter = 1
     print("-------processing: ", video_file)
 
     while True:
         # Grab a single frame of video
-        ret, frame = video_capture.read()
-        if not(ret):
-            print("Video finished at frame ", frame_counter)
+        frame_exist, frame = video_capture.read()
+        timestamp = int(video_capture.get(cv2.CAP_PROP_POS_MSEC))
+        if timestamp == 0:
+            timestamp = int(1000 * (totalNoFrames / fps))
+        time_m_s = f"{timestamp}MSec : {timestamp//60000}m:{int((timestamp%60000)/1000)}s"
+        if not(frame_exist):
+            print("Video finished at ", time_m_s)
             break
 
         # Only process every other frame of video to save time
         if frame_counter%skip_frames==0:
             height, width, layers = frame.shape
             size = (width,height)
-            timestamp = int(video_capture.get(cv2.CAP_PROP_POS_MSEC))
 
-            time_m_s = f"{timestamp//60000}m:{int((timestamp%60000)/1000)}s"
-
-            fps = video_capture.get(cv2.CAP_PROP_FPS)
+            
             print(f"time:  {time_m_s}", end ='')
             # Resize frame of video to 1/4 size for faster face recognition processing
             resized_frame = cv2.resize(frame, (0, 0), fx=resiz_factor, fy=resiz_factor)
@@ -181,8 +187,12 @@ def video_inference(known_encodings, known_names, video_folder, video_name, unkn
                 if matches[best_match_index]:
                     name = known_names[best_match_index]
                     knowns+=1
+                    # create two dic, faces_in_frames: first time face appear in video, faces_all_timestamps: all times face appear in video
                     if name not in faces_in_frames.keys():
-                        faces_in_frames[name]= timestamp
+                        faces_all_timestamps[name] = [timestamp]
+                        faces_in_frames[name] = timestamp
+                    else:
+                        faces_all_timestamps[name].append(timestamp)
 
                 else:
                     name = "Unknown"
@@ -194,8 +204,8 @@ def video_inference(known_encodings, known_names, video_folder, video_name, unkn
             print()
             
             frame = show_labeled_image(frame, show_video_output, n_faces, face_locations, resiz_factor, face_names)
-
             frame_array.append(frame)
+
         frame_counter +=1
 
 
@@ -203,15 +213,25 @@ def video_inference(known_encodings, known_names, video_folder, video_name, unkn
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
+    faces_split_timestamps = split_show_time(faces_all_timestamps)
+
+    # fps for output file, if it's less than 1 the files is corrupted
+    if skip_frames > 0.5*fps:
+        target_fps=int(2*fps/skip_frames)
+    else:
+        target_fps=int(fps/skip_frames)
+    if target_fps < 2: # min fps = 2
+        target_fps = 2
+    # writes file
     if write_video_output:
-        save_video(video_name, unknown_faces_dir, frame_array, target_fps=int(fps/skip_frames), image_size=size)
+        save_video(video_name, unknown_faces_dir, frame_array, target_fps=target_fps, image_size=size)
 
     # Release handle to the webcam
     video_capture.release()
     cv2.destroyAllWindows()    
 
     total = unknowns + knowns
-    return faces_in_frames, total, unknowns, knowns
+    return faces_in_frames, total, unknowns, knowns, faces_split_timestamps
 
 # save photos in folder
 def save_photo(unknown_faces_dir, video_name, face_image, image_name):
@@ -228,12 +248,52 @@ def save_video(video_name, video_folder, frame_array, target_fps, image_size):
         os.mkdir(out_path)
     out_name = f"{video_name}_labeled.avi"
     out_path = os.path.normpath(os.path.join(out_path, out_name))
-    print("----output video: ", out_path)
+    print("----output video: ", out_path, "fps: ", {target_fps})
     out_writer = cv2.VideoWriter(out_path, cv2.VideoWriter_fourcc(*'XVID'), target_fps, image_size)
     for i in range(len(frame_array)):
         # writing to a image array
         out_writer.write(frame_array[i])
     out_writer.release()
+
+# split continous milliseconds into seperate entries of start and end
+def split_show_time(named_show, exit_threshold_ms = 1500):
+    named_split_shows = {}
+    for name, arr in named_show.items():
+        temp = [arr[0]]
+        splits = []
+
+        for i, v in enumerate(arr):
+            if v == temp[-1]:  
+                pass
+            elif (v - temp[-1] <= exit_threshold_ms):
+                temp.append(v)
+            elif not(i == len(arr)):
+                splits.append(temp)
+                temp = [v]
+            else:
+                splits.append(temp)
+        
+        # append last temp after for exit
+        splits.append(temp)
+
+        # keep start and end only, append dummy value if an array has single frame
+        for i, times in enumerate(splits):
+            if len(times) == 1:
+                times.append(times[-1])
+            splits[i] = [times[0], times[-1]]
+            
+        named_split_shows[name] = splits
+    
+    named_split_shows = refine_results(named_split_shows)
+    return named_split_shows
+
+# remove single frame faces before the split_show_time return results
+def refine_results(named_split_shows):
+    for name, arrs in list(named_split_shows.items()):
+        if (len(arrs) == 1) and (arrs[0][0] == arrs[0][-1]):
+            named_split_shows.pop(name)
+
+    return named_split_shows
 
 # activate the inference method and produce the results
 def pipeline(
@@ -262,7 +322,7 @@ def pipeline(
             return obj, status_code
 
         try:  
-            faces_in_frames, total, unknowns, knowns = video_inference(
+            faces_in_frames, total, unknowns, knowns ,faces_split_timestamps= video_inference(
                 known_encodings=known_encodings, 
                 known_names=known_names, 
                 video_folder=video_dir, 
@@ -283,6 +343,20 @@ def pipeline(
                         "time": val}
                 faces_list.append(person)
 
+            named_split_shows = []
+            for key, value in faces_split_timestamps.items():
+                entry = {
+                        "name": key ,
+                        "appearances_count": len(value),
+                        "appearances_details": [],
+                        }
+
+                for arr in value:
+                    temp = {"entry_start": arr[0], "entry_finish": arr[-1]}
+                    entry["appearances_details"].append(temp)
+
+                named_split_shows.append(entry)
+
             status_msg = "done"
             status_code = 200
             obj = {"status": status_msg,
@@ -290,7 +364,8 @@ def pipeline(
                     "total_faces_count": total,
                     "unknown_faces_count": unknowns,
                     "known_faces_count": knowns,
-                    "known_faces_list": faces_list
+                    "known_faces_list": faces_list,
+                    "faces_split_timestamps": named_split_shows,
                     }
             return obj, status_code
         except Exception as e:
@@ -305,5 +380,5 @@ def pipeline(
         return obj, status_code
 
 
-# pipeline(video_name="2.mp4", skip_frames=10)  
+# pipeline(video_name="3.mp4", skip_frames=30, resiz_factor=1, model="hog")  
 # pipeline()

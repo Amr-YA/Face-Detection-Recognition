@@ -5,7 +5,7 @@ port = "3000"
 post_obj = {
             "file_name": "3.mp4",
             # "model": "hog",
-            "skip_frames": 60,
+            "skip_frames": 30,
             # "resiz_factor": 1,
             # "num_jitters": 1,
             # "tolerance": 0.6,

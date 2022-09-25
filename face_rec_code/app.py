@@ -8,6 +8,7 @@ import warnings
 warnings.simplefilter("ignore")
 
 app = Flask(__name__)
+app.config['JSON_SORT_KEYS'] = False
 APP_DIR = os.path.dirname(__file__)
 DOCKER_DIR = os.path.dirname(APP_DIR)
 

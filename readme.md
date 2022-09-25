@@ -74,8 +74,16 @@ parameters_json = {
 
 
 ## /run response
+response is in json format accessed from response[text],  
+`status`: did the analysis complete successfully  
+`video_file`: full directory of file used for the analysis  
+`known_faces_count`: number of faces detected and recognized (count duplicates)  
+`unknown_faces_count`: number of faces detected but not recognized (count duplicates)  
+`total_faces_count`: number of all faces detected (count duplicates)  
+`known_faces_list`: list of recognized faces and their first appearance in MSec  
+`faces_split_timestamps`: list of recognized faces and every appearance start and end in MSec - faces recognized in a single frame are removed from this list (most likely false detections)  
 ```
-json = {
+Sample return json = {
         "status":"done",
         "video_file": full/path/video_file.mp4,
         "known_faces_count": 26,
@@ -86,6 +94,32 @@ json = {
                 {"name":"thor","time":7465},
                 {"name":"loki","time":10385}
             ],
+        "faces_split_timestamps": [
+        {
+            "name": "thor",
+            "appearances_count": 2,
+            "appearances_details": [
+                {
+                    "entry_start": 7160,
+                    "entry_finish": 7160
+                },
+                {
+                    "entry_start": 14360,
+                    "entry_finish": 14360
+                }
+            ]
+        },
+        {
+            "name": "loki",
+            "appearances_count": 1,
+            "appearances_details": [
+                {
+                    "entry_start": 7160,
+                    "entry_finish": 7160
+                }
+            ]
+        },
+    ]   
     }
 & status_code
 ```

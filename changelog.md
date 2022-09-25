@@ -1,5 +1,12 @@
 # Changelog
-## 24-Sep-22
+
+## 25-Sep-22 - git:feature-start_end
+1. added `video_face_rec.py/faces_split_timestamps` return value for all the enteries a faces appears
+2. added `video_face_rec.py/refine_results` to remove single frames faces from enteries return, but not activated in 1st appearance return
+3. fixed `timestamp` = 0 by the end of the video
+4. fixed `target_fps` having value less than 1 which resulted in corrupted video output
+
+## 24-Sep-22 - git:feature-custm_analysis
 1. restructured the files into folders
     - `/face_rec_code/`: for all the python code
     - `/face_rec_files/`: for the videos and pictures
