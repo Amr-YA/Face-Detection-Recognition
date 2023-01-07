@@ -13,5 +13,4 @@ COPY . .
 EXPOSE 5005
 USER 1001
 
-RUN cd ./app
-CMD ["python", "app.py"]
+CMD ["python", "./face_rec_code/app.py"]
