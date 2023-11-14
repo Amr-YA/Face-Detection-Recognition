@@ -1,6 +1,6 @@
 # Face Detection & Recognition (PoC)
-Face recognition model: detects multiple faces in a video and recognize known persons.
-*This acts as Proof of concept for a more complex project*
+Face recognition model: detects multiple faces in a video and recognize known persons.  
+*This acts as Proof of concept for a more complex project*  
 
 The media (faces pictures, names, video) has to follow certain directory structure:
 ```
